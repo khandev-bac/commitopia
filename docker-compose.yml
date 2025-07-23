@@ -1,0 +1,14 @@
+services:
+  db:
+    container_name: commitApp
+    image: postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=commitDB
+    ports:
+      - 5432:5432
+    volumes:
+      - commitdata:/var/lib/postgresql/data
+volumes:
+  commitdata:
