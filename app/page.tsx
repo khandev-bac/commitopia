@@ -1,10 +1,102 @@
 "use client"
 import React, { useState } from 'react';
-import { Github, Search, Sparkles, ArrowRight } from 'lucide-react';
+import { Github, Search, Sparkles, ArrowRight, X, Clock, User, FileText, Hash, Calendar, GitCommit, Loader2 } from 'lucide-react';
+
+// Import your actual function directly
+
+// Type definitions
+interface CommitStats {
+    additions?: number;
+    deletions?: number;
+    total?: number;
+}
+
+interface CommitFile {
+    sha: string;
+    filename: string;
+    status: string;
+    additions: number;
+    deletions: number;
+    changes: number;
+    blob_url: string;
+    raw_url: string;
+    contents_url: string;
+    patch?: string;
+    previous_filename?: string;
+}
+
+interface CommitMetadata {
+    message: string;
+    author: string;
+    date: string;
+    stats?: CommitStats;
+    files?: CommitFile[];
+}
+
+interface CommitResult {
+    commitHash: string;
+    metadata?: CommitMetadata | null;
+    summary?: string;
+    error?: string;
+}
+
+type AnalysisResults = CommitResult[];
 
 const Page = () => {
     const [repoUrl, setRepoUrl] = useState('');
     const [isFocused, setIsFocused] = useState(false);
+    const [res, setRes] = useState<AnalysisResults>([]);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const handlesubmit = async () => {
+        if (!repoUrl.trim()) return;
+
+        setIsLoading(true);
+        setError(null);
+        try {
+            const res = await fetch("/api/analyze-commits", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ repoUrl }),
+            })
+            const result = await res.json();
+            if (!res.ok) {
+                throw new Error(result.error || 'Failed to analyze repository');
+            }
+            setRes(result.data);
+            setIsDialogOpen(true);
+        } catch (error: any) {
+            console.error('Error fetching repository data:', error);
+            setError(error.message || 'Failed to analyze repository. Please check the URL and try again.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const formatDate = (dateString: string) => {
+        return new Date(dateString).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    const renderMarkdown = (text: string) => {
+        // Simple markdown rendering for demonstration
+        return text
+            .replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold text-white mb-4">$1</h1>')
+            .replace(/^## (.*$)/gm, '<h2 class="text-xl font-semibold text-purple-200 mb-3 mt-6">$1</h2>')
+            .replace(/^### (.*$)/gm, '<h3 class="text-lg font-medium text-blue-200 mb-2 mt-4">$1</h3>')
+            .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-purple-300">$1</strong>')
+            .replace(/`([^`]+)`/g, '<code class="bg-gray-800 text-purple-300 px-2 py-1 rounded text-sm font-mono">$1</code>')
+            .replace(/^- (.*$)/gm, '<li class="text-gray-300 mb-1">$1</li>')
+            .replace(/\n\n/g, '</p><p class="text-gray-300 mb-4">')
+            .replace(/^(?!<[h|l|c])(.*$)/gm, '<p class="text-gray-300 mb-4">$1</p>');
+    };
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8 relative overflow-hidden">
@@ -83,20 +175,33 @@ const Page = () => {
                                     onChange={(e) => setRepoUrl(e.target.value)}
                                     onFocus={() => setIsFocused(true)}
                                     onBlur={() => setIsFocused(false)}
+                                    onKeyPress={(e) => e.key === 'Enter'}
                                     placeholder="https://github.com/owner/repository"
                                     className="flex-1 bg-transparent text-white text-sm sm:text-lg placeholder-gray-500 focus:outline-none py-3 sm:py-4 pr-2 sm:pr-4"
+                                    disabled={isLoading}
                                 />
                             </div>
 
                             {/* Submit button */}
                             <button
-                                className={`px-4 py-3 sm:px-6 sm:py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-semibold rounded-lg sm:rounded-xl transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 whitespace-nowrap text-sm sm:text-base ${repoUrl.trim() ? 'opacity-100' : 'opacity-50 cursor-not-allowed'
+                                onClick={handlesubmit}
+                                className={`px-4 py-3 sm:px-6 sm:py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-semibold rounded-lg sm:rounded-xl transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 whitespace-nowrap text-sm sm:text-base ${repoUrl.trim() && !isLoading ? 'opacity-100' : 'opacity-50 cursor-not-allowed'
                                     }`}
-                                disabled={!repoUrl.trim()}
+                                disabled={!repoUrl.trim() || isLoading}
                             >
-                                <span className="hidden sm:inline">Explore</span>
-                                <span className="sm:hidden">Go</span>
-                                <ArrowRight className="w-4 h-4" />
+                                {isLoading ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        <span className="hidden sm:inline">Analyzing...</span>
+                                        <span className="sm:hidden">...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="hidden sm:inline">Explore</span>
+                                        <span className="sm:hidden">Go</span>
+                                        <ArrowRight className="w-4 h-4" />
+                                    </>
+                                )}
                             </button>
                         </div>
                     </div>
@@ -115,6 +220,7 @@ const Page = () => {
                                 key={repo.name}
                                 onClick={() => setRepoUrl(repo.url)}
                                 className="px-3 py-1.5 sm:px-4 sm:py-2 bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700/50 hover:border-gray-600/50 text-gray-300 hover:text-white text-xs sm:text-sm rounded-md sm:rounded-lg transition-all duration-300 backdrop-blur-sm"
+                                disabled={isLoading}
                             >
                                 {repo.name}
                             </button>
@@ -123,12 +229,136 @@ const Page = () => {
                 </div>
             </div>
 
+            {/* Error Display (when not in dialog) */}
+            {error && !isDialogOpen && (
+                <div className="relative z-10 w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-2xl mx-auto mt-6">
+                    <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-4 backdrop-blur-sm">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-red-500/20 rounded-full flex items-center justify-center flex-shrink-0">
+                                <X className="w-4 h-4 text-red-400" />
+                            </div>
+                            <div>
+                                <h3 className="text-red-300 font-semibold text-sm">Analysis Failed</h3>
+                                <p className="text-red-400 text-sm mt-1">{error}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Results Dialog */}
+            {isDialogOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <div className="bg-gray-900/95 backdrop-blur-xl border border-gray-700/50 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+                        {/* Dialog Header */}
+                        <div className="flex items-center justify-between p-6 border-b border-gray-700/50">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg flex items-center justify-center">
+                                    <GitCommit className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-white">Commit Analysis Results</h2>
+                                    <p className="text-gray-400 text-sm">
+                                        {res.length} {res.length === 1 ? 'commit' : 'commits'} analyzed
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsDialogOpen(false)}
+                                className="w-8 h-8 bg-gray-800 hover:bg-gray-700 rounded-lg flex items-center justify-center transition-colors"
+                            >
+                                <X className="w-4 h-4 text-gray-400" />
+                            </button>
+                        </div>
+
+                        {/* Dialog Content */}
+                        <div className="overflow-y-auto max-h-[calc(90vh-140px)] p-6">
+                            {error ? (
+                                <div className="text-center py-8">
+                                    <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <X className="w-8 h-8 text-red-400" />
+                                    </div>
+                                    <h3 className="text-lg font-semibold text-white mb-2">Analysis Failed</h3>
+                                    <p className="text-red-400 mb-4">{error}</p>
+                                    <button
+                                        onClick={() => setIsDialogOpen(false)}
+                                        className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="space-y-8">
+                                    {res.map((commit, index) => (
+                                        <div key={commit.commitHash || index} className="bg-gray-800/50 rounded-xl p-6 border border-gray-700/30">
+                                            {commit.error ? (
+                                                <div className="text-center py-4">
+                                                    <div className="text-red-400 mb-2">❌ Failed to analyze commit</div>
+                                                    <code className="text-gray-500 text-sm">{commit.commitHash}</code>
+                                                    <p className="text-red-300 text-sm mt-2">{commit.error}</p>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    {/* Commit Header */}
+                                                    <div className="flex items-start justify-between mb-6 pb-4 border-b border-gray-700/30">
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center gap-3 mb-2">
+                                                                <Hash className="w-4 h-4 text-purple-400" />
+                                                                <code className="text-purple-300 font-mono text-sm">{commit.commitHash}</code>
+                                                            </div>
+                                                            <h3 className="text-lg font-semibold text-white mb-2">
+                                                                {commit.metadata?.message || 'No commit message'}
+                                                            </h3>
+                                                            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
+                                                                <div className="flex items-center gap-1">
+                                                                    <User className="w-3 h-3" />
+                                                                    <span>{commit.metadata?.author || 'Unknown'}</span>
+                                                                </div>
+                                                                {commit.metadata?.date && (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <Calendar className="w-3 h-3" />
+                                                                        <span>{formatDate(commit.metadata.date)}</span>
+                                                                    </div>
+                                                                )}
+                                                                {commit.metadata?.files && (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <FileText className="w-3 h-3" />
+                                                                        <span>{commit.metadata.files.length} files</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        {commit.metadata?.stats && (
+                                                            <div className="text-right">
+                                                                <div className="text-green-400 text-sm font-mono">+{commit.metadata.stats.additions}</div>
+                                                                <div className="text-red-400 text-sm font-mono">-{commit.metadata.stats.deletions}</div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* AI Summary */}
+                                                    {commit.summary && (
+                                                        <div className="prose prose-invert max-w-none">
+                                                            <div dangerouslySetInnerHTML={{ __html: renderMarkdown(commit.summary) }} />
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Subtle grid pattern overlay */}
             <div
                 className="absolute inset-0 opacity-5 pointer-events-none"
                 style={{
                     backgroundImage: `radial-gradient(circle at 1px 1px, white 1px, transparent 0)`,
-                    backgroundSize: '30px 30px sm:50px sm:50px'
+                    backgroundSize: '30px 30px'
                 }}
             ></div>
         </div>
