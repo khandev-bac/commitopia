@@ -1,13 +1,20 @@
 "use client"
 import React from 'react'
 import { GithubIcon } from "lucide-react"
+import { signIn } from "next-auth/react"
 const Github = () => {
+    const handleSingup = async () => {
+
+        await signIn("github")
+    }
     return (
-        <button className='flex flex-row w-fit px-4 py-3 bg-black  text-white font-medium rounded-lg cursor-pointer'>
+        <button className='flex flex-row w-fit px-4 py-3 bg-black  text-white font-medium rounded-lg cursor-pointer'
+            onClick={handleSingup}
+        >
             <GithubIcon />
             Sign up with github
         </button>
     )
 }
 
-export default Github
+export default Github;
